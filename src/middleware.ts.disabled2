@@ -1,0 +1,149 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getToken } from 'next-auth/jwt'
+// Simple console logger for middleware (edge runtime compatible)
+const logger = {
+  info: (message: string, meta?: any) => {
+    console.log(`[INFO] ${message}`, meta ? JSON.stringify(meta) : '')
+  },
+  error: (message: string, meta?: any) => {
+    console.error(`[ERROR] ${message}`, meta ? JSON.stringify(meta) : '')
+  }
+}
+
+const PUBLIC_PATHS = [
+  '/',
+  '/auth/login',
+  '/auth/signup',
+  '/api/auth',
+  '/api/health',
+  '/_next',
+  '/favicon.ico'
+]
+
+const API_PATHS = [
+  '/api/meta',
+  '/api/sync',
+  '/api/webhooks'
+]
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  const clientIP = getClientIP(request)
+  const userAgent = request.headers.get('user-agent') || ''
+
+  // Skip middleware for public paths
+  if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
+    return NextResponse.next()
+  }
+
+  try {
+    // Temporarily disable Redis-dependent features for testing
+    // TODO: Implement Redis-compatible middleware for Edge Runtime
+
+    // Basic logging without Redis
+    logger.info('Request processed', {
+      ip: clientIP,
+      path: pathname,
+      userAgent
+    })
+
+    // Get NextAuth token
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET
+    })
+
+    // Check if user is authenticated
+    if (!token) {
+      logger.info('Unauthenticated access attempt', {
+        ip: clientIP,
+        path: pathname,
+        userAgent
+      })
+
+      // Redirect to login for dashboard routes
+      if (pathname.startsWith('/dashboard')) {
+        return NextResponse.redirect(new URL('/auth/login', request.url))
+      }
+
+      // Return 401 for API routes
+      if (pathname.startsWith('/api')) {
+        return new NextResponse(
+          JSON.stringify({ error: 'Authentication required' }),
+          {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        )
+      }
+    }
+
+    if (token) {
+      // Basic session logging
+      logger.info('Session activity', {
+        userId: token.sub,
+        ip: clientIP,
+        path: pathname,
+        userAgent
+      })
+
+      // API route specific checks
+      if (API_PATHS.some(path => pathname.startsWith(path))) {
+        // Add user context to request headers for API routes
+        const requestHeaders = new Headers(request.headers)
+        requestHeaders.set('x-user-id', token.sub as string)
+        requestHeaders.set('x-user-email', token.email as string)
+
+        return NextResponse.next({
+          request: {
+            headers: requestHeaders
+          }
+        })
+      }
+    }
+
+    // Continue with request
+    return NextResponse.next()
+
+  } catch (error) {
+    logger.error('Middleware error', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      path: pathname,
+      ip: clientIP,
+      stack: error instanceof Error ? error.stack : undefined
+    })
+
+    // Fail open for non-critical errors, but log them
+    return NextResponse.next()
+  }
+}
+
+function getClientIP(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for')
+  const realIP = request.headers.get('x-real-ip')
+  const cfConnectingIP = request.headers.get('cf-connecting-ip')
+
+  if (cfConnectingIP) return cfConnectingIP
+  if (realIP) return realIP
+  if (forwarded) return forwarded.split(',')[0].trim()
+
+  return request.ip || '127.0.0.1'
+}
+
+function generateFingerprint(request: NextRequest): string {
+  const components = [
+    request.headers.get('user-agent') || '',
+    request.headers.get('accept-language') || '',
+    request.headers.get('accept-encoding') || '',
+    request.headers.get('sec-ch-ua') || '',
+    request.headers.get('sec-ch-ua-platform') || ''
+  ]
+
+  return Buffer.from(components.join('|')).toString('base64')
+}
+
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ]
+}

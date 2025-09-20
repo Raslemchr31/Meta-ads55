@@ -1,0 +1,262 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Stitch Analytics Dashboard Theme */
+:root {
+  --primary-color: #8013ec;
+  --background-dark: #141118;
+  --background-secondary: #1a161f;
+  --background-tertiary: #302839;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.8);
+  --text-muted: rgba(255, 255, 255, 0.6);
+  --text-disabled: #ab9db9;
+  --border-color: #473b54;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    line-height: 1.5;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-space-grotesk;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--background-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-color);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #8013ec;
+}
+
+/* Loading animations */
+@keyframes shimmer {
+  0% {
+    background-position: -468px 0;
+  }
+  100% {
+    background-position: 468px 0;
+  }
+}
+
+.shimmer {
+  animation: shimmer 1.5s infinite;
+  background: linear-gradient(
+    to right,
+    hsl(var(--muted)) 8%,
+    hsl(var(--muted-foreground) / 0.1) 38%,
+    hsl(var(--muted)) 54%
+  );
+  background-size: 1000px 640px;
+}
+
+/* Smooth transitions for theme changes */
+* {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* Facebook brand colors */
+.facebook-gradient {
+  background: linear-gradient(135deg, #1877F2 0%, #166FE5 100%);
+}
+
+/* Custom focus styles */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800;
+}
+
+/* Dashboard specific styles */
+.dashboard-layout {
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+  background-color: var(--background-dark);
+}
+
+.dashboard-sidebar {
+  @apply hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 transition-all duration-300 z-30;
+  background-color: var(--background-secondary);
+  border-right: 1px solid var(--border-color);
+}
+
+.dashboard-main {
+  @apply flex flex-col flex-1 overflow-hidden;
+}
+
+.dashboard-content {
+  @apply flex-1 overflow-y-auto;
+  background-color: var(--background-dark);
+}
+
+/* Chart tooltips */
+.recharts-tooltip-content {
+  background-color: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+/* Animation utilities */
+.animate-in {
+  animation: animateIn 0.3s ease-out forwards;
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+@keyframes animateIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glassmorphism {
+  background: rgba(48, 40, 57, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #8013ec 0%, #a855f7 50%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Skillence brand colors */
+:root {
+  --skillence-primary: #3b82f6;
+  --skillence-secondary: #10b981;
+  --skillence-accent: #8b5cf6;
+}
+
+/* RTL Support */
+.rtl {
+  direction: rtl;
+}
+
+.rtl .ml-2 {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+.rtl .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+.rtl .pl-10 {
+  padding-left: 0.75rem;
+  padding-right: 2.5rem;
+}
+
+.rtl .pr-10 {
+  padding-right: 0.75rem;
+  padding-left: 2.5rem;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Line clamp utilities */
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.line-clamp-4 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+/* Card hover effects */
+.card-hover {
+  @apply transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:border-primary/20;
+}
+
+/* Button loading state */
+.button-loading {
+  position: relative;
+  color: transparent;
+}
+
+.button-loading::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  left: 50%;
+  margin-left: -8px;
+  margin-top: -8px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+  color: inherit;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
