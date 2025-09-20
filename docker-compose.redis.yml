@@ -1,0 +1,466 @@
+version: '3.8'
+
+# Meta Ads Intelligence Platform - Production Redis with Sentinel
+# High Availability Redis Cluster Configuration
+
+services:
+  # =======================
+  # REDIS MASTER
+  # =======================
+  redis-master:
+    image: redis:7.2-alpine
+    container_name: meta-ads-redis-master
+    hostname: redis-master
+    ports:
+      - "6379:6379"
+      - "6380:6380"
+    volumes:
+      - ./redis/redis.conf:/etc/redis/redis.conf:ro
+      - ./redis/users.acl:/etc/redis/users.acl:ro
+      - ./redis/tls:/etc/redis/tls:ro
+      - redis-master-data:/var/lib/redis
+      - redis-logs:/var/log/redis
+    command: redis-server /etc/redis/redis.conf
+    environment:
+      - REDIS_REPLICATION_MODE=master
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$}
+    networks:
+      - redis-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--tls", "--cert", "/etc/redis/tls/redis.crt", "--key", "/etc/redis/tls/redis.key", "--cacert", "/etc/redis/tls/ca.crt", "-p", "6380", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2.5G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    labels:
+      - "com.meta-ads.service=redis-master"
+      - "com.meta-ads.environment=production"
+
+  # =======================
+  # REDIS REPLICA 1
+  # =======================
+  redis-replica-1:
+    image: redis:7.2-alpine
+    container_name: meta-ads-redis-replica-1
+    hostname: redis-replica-1
+    ports:
+      - "6381:6379"
+      - "6382:6380"
+    volumes:
+      - ./redis/redis-replica.conf:/etc/redis/redis.conf:ro
+      - ./redis/users.acl:/etc/redis/users.acl:ro
+      - ./redis/tls:/etc/redis/tls:ro
+      - redis-replica-1-data:/var/lib/redis
+      - redis-logs:/var/log/redis
+    command: redis-server /etc/redis/redis.conf --replicaof redis-master 6379
+    environment:
+      - REDIS_REPLICATION_MODE=replica
+      - REDIS_MASTER_PASSWORD=${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$}
+    networks:
+      - redis-network
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--tls", "--cert", "/etc/redis/tls/redis.crt", "--key", "/etc/redis/tls/redis.key", "--cacert", "/etc/redis/tls/ca.crt", "-p", "6380", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    labels:
+      - "com.meta-ads.service=redis-replica"
+      - "com.meta-ads.environment=production"
+
+  # =======================
+  # REDIS REPLICA 2
+  # =======================
+  redis-replica-2:
+    image: redis:7.2-alpine
+    container_name: meta-ads-redis-replica-2
+    hostname: redis-replica-2
+    ports:
+      - "6383:6379"
+      - "6384:6380"
+    volumes:
+      - ./redis/redis-replica.conf:/etc/redis/redis.conf:ro
+      - ./redis/users.acl:/etc/redis/users.acl:ro
+      - ./redis/tls:/etc/redis/tls:ro
+      - redis-replica-2-data:/var/lib/redis
+      - redis-logs:/var/log/redis
+    command: redis-server /etc/redis/redis.conf --replicaof redis-master 6379
+    environment:
+      - REDIS_REPLICATION_MODE=replica
+      - REDIS_MASTER_PASSWORD=${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$}
+    networks:
+      - redis-network
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--tls", "--cert", "/etc/redis/tls/redis.crt", "--key", "/etc/redis/tls/redis.key", "--cacert", "/etc/redis/tls/ca.crt", "-p", "6380", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    labels:
+      - "com.meta-ads.service=redis-replica"
+      - "com.meta-ads.environment=production"
+
+  # =======================
+  # REDIS SENTINEL 1
+  # =======================
+  redis-sentinel-1:
+    image: redis:7.2-alpine
+    container_name: meta-ads-redis-sentinel-1
+    hostname: redis-sentinel-1
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+      - ./redis/tls:/etc/redis/tls:ro
+      - redis-sentinel-1-data:/var/lib/redis
+    command: redis-sentinel /etc/redis/sentinel.conf
+    environment:
+      - REDIS_SENTINEL_MODE=sentinel
+      - REDIS_MASTER_PASSWORD=${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$}
+    networks:
+      - redis-network
+    depends_on:
+      - redis-master
+      - redis-replica-1
+      - redis-replica-2
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    labels:
+      - "com.meta-ads.service=redis-sentinel"
+      - "com.meta-ads.environment=production"
+
+  # =======================
+  # REDIS SENTINEL 2
+  # =======================
+  redis-sentinel-2:
+    image: redis:7.2-alpine
+    container_name: meta-ads-redis-sentinel-2
+    hostname: redis-sentinel-2
+    ports:
+      - "26380:26379"
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+      - ./redis/tls:/etc/redis/tls:ro
+      - redis-sentinel-2-data:/var/lib/redis
+    command: redis-sentinel /etc/redis/sentinel.conf
+    environment:
+      - REDIS_SENTINEL_MODE=sentinel
+      - REDIS_MASTER_PASSWORD=${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$}
+    networks:
+      - redis-network
+    depends_on:
+      - redis-master
+      - redis-replica-1
+      - redis-replica-2
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    labels:
+      - "com.meta-ads.service=redis-sentinel"
+      - "com.meta-ads.environment=production"
+
+  # =======================
+  # REDIS SENTINEL 3
+  # =======================
+  redis-sentinel-3:
+    image: redis:7.2-alpine
+    container_name: meta-ads-redis-sentinel-3
+    hostname: redis-sentinel-3
+    ports:
+      - "26381:26379"
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+      - ./redis/tls:/etc/redis/tls:ro
+      - redis-sentinel-3-data:/var/lib/redis
+    command: redis-sentinel /etc/redis/sentinel.conf
+    environment:
+      - REDIS_SENTINEL_MODE=sentinel
+      - REDIS_MASTER_PASSWORD=${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$}
+    networks:
+      - redis-network
+    depends_on:
+      - redis-master
+      - redis-replica-1
+      - redis-replica-2
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    labels:
+      - "com.meta-ads.service=redis-sentinel"
+      - "com.meta-ads.environment=production"
+
+  # =======================
+  # REDIS MONITORING
+  # =======================
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: meta-ads-redis-exporter
+    environment:
+      - REDIS_ADDR=redis://redis-master:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$}
+      - REDIS_EXPORTER_INCL_SYSTEM_METRICS=true
+    ports:
+      - "9121:9121"
+    networks:
+      - redis-network
+      - monitoring-network
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9121/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.2'
+        reservations:
+          memory: 32M
+          cpus: '0.05'
+    labels:
+      - "com.meta-ads.service=redis-exporter"
+      - "com.meta-ads.environment=production"
+
+  # =======================
+  # REDIS COMMANDER (Development/Staging only)
+  # =======================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: meta-ads-redis-commander
+    environment:
+      - REDIS_HOSTS=master:redis-master:6379:0:${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$},replica1:redis-replica-1:6379:0:${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$}
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD:-RedisAdmin2024!}
+    ports:
+      - "8081:8081"
+    networks:
+      - redis-network
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+    profiles:
+      - development
+      - staging
+    labels:
+      - "com.meta-ads.service=redis-commander"
+      - "com.meta-ads.environment=development"
+
+  # =======================
+  # REDIS BACKUP SERVICE
+  # =======================
+  redis-backup:
+    image: redis:7.2-alpine
+    container_name: meta-ads-redis-backup
+    volumes:
+      - ./redis/backup.sh:/usr/local/bin/backup.sh:ro
+      - ./redis/tls:/etc/redis/tls:ro
+      - redis-backups:/backups
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-MetaAds2024!SecureRedis#Production$}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_BUCKET=${REDIS_BACKUP_S3_BUCKET:-meta-ads-redis-backups}
+    networks:
+      - redis-network
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+    command: >
+      sh -c "
+        apk add --no-cache aws-cli dcron &&
+        echo '0 */6 * * * /usr/local/bin/backup.sh' | crontab - &&
+        crond -f
+      "
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    labels:
+      - "com.meta-ads.service=redis-backup"
+      - "com.meta-ads.environment=production"
+
+# =======================
+# NETWORK CONFIGURATION
+# =======================
+networks:
+  redis-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+    labels:
+      - "com.meta-ads.network=redis"
+
+  monitoring-network:
+    external: true
+    name: meta-ads-monitoring
+
+# =======================
+# VOLUME CONFIGURATION
+# =======================
+volumes:
+  redis-master-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/docker/volumes/meta-ads-redis-master
+    labels:
+      - "com.meta-ads.volume=redis-master-data"
+
+  redis-replica-1-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/docker/volumes/meta-ads-redis-replica-1
+    labels:
+      - "com.meta-ads.volume=redis-replica-1-data"
+
+  redis-replica-2-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/docker/volumes/meta-ads-redis-replica-2
+    labels:
+      - "com.meta-ads.volume=redis-replica-2-data"
+
+  redis-sentinel-1-data:
+    driver: local
+    labels:
+      - "com.meta-ads.volume=redis-sentinel-1-data"
+
+  redis-sentinel-2-data:
+    driver: local
+    labels:
+      - "com.meta-ads.volume=redis-sentinel-2-data"
+
+  redis-sentinel-3-data:
+    driver: local
+    labels:
+      - "com.meta-ads.volume=redis-sentinel-3-data"
+
+  redis-logs:
+    driver: local
+    labels:
+      - "com.meta-ads.volume=redis-logs"
+
+  redis-backups:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/backups/redis
+    labels:
+      - "com.meta-ads.volume=redis-backups"
