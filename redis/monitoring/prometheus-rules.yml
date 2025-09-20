@@ -1,0 +1,349 @@
+# Meta Ads Intelligence Platform - Redis Prometheus Alert Rules
+# Comprehensive monitoring and alerting for Redis infrastructure
+
+groups:
+  - name: redis.rules
+    rules:
+      # =======================
+      # REDIS AVAILABILITY ALERTS
+      # =======================
+      - alert: RedisInstanceDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+          component: availability
+        annotations:
+          summary: "Redis instance is down"
+          description: "Redis instance {{ $labels.instance }} has been down for more than 1 minute"
+          runbook_url: "https://docs.meta-ads.com/runbooks/redis-down"
+
+      - alert: RedisMasterDown
+        expr: redis_instance_info{role="master"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: redis
+          component: master
+        annotations:
+          summary: "Redis master is down"
+          description: "Redis master instance {{ $labels.instance }} is down"
+          runbook_url: "https://docs.meta-ads.com/runbooks/redis-master-down"
+
+      - alert: RedisReplicaDown
+        expr: redis_instance_info{role="slave"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: redis
+          component: replica
+        annotations:
+          summary: "Redis replica is down"
+          description: "Redis replica instance {{ $labels.instance }} has been down for more than 2 minutes"
+
+      # =======================
+      # REDIS SENTINEL ALERTS
+      # =======================
+      - alert: RedisSentinelDown
+        expr: redis_sentinel_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis-sentinel
+          component: availability
+        annotations:
+          summary: "Redis Sentinel is down"
+          description: "Redis Sentinel instance {{ $labels.instance }} has been down for more than 1 minute"
+
+      - alert: RedisSentinelMasterNotFound
+        expr: redis_sentinel_masters < 1
+        for: 30s
+        labels:
+          severity: critical
+          service: redis-sentinel
+          component: master-discovery
+        annotations:
+          summary: "Redis Sentinel cannot find master"
+          description: "Redis Sentinel on {{ $labels.instance }} cannot find the master instance"
+
+      - alert: RedisSentinelQuorumLost
+        expr: redis_sentinel_masters_sentinels < 2
+        for: 1m
+        labels:
+          severity: critical
+          service: redis-sentinel
+          component: quorum
+        annotations:
+          summary: "Redis Sentinel quorum lost"
+          description: "Redis Sentinel quorum lost - only {{ $value }} sentinels monitoring master"
+
+      # =======================
+      # REDIS PERFORMANCE ALERTS
+      # =======================
+      - alert: RedisHighMemoryUsage
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+          component: memory
+        annotations:
+          summary: "Redis high memory usage"
+          description: "Redis instance {{ $labels.instance }} memory usage is {{ $value }}%"
+
+      - alert: RedisCriticalMemoryUsage
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+          service: redis
+          component: memory
+        annotations:
+          summary: "Redis critical memory usage"
+          description: "Redis instance {{ $labels.instance }} memory usage is {{ $value }}%"
+
+      - alert: RedisHighCPUUsage
+        expr: rate(redis_cpu_sys_seconds_total[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+          component: cpu
+        annotations:
+          summary: "Redis high CPU usage"
+          description: "Redis instance {{ $labels.instance }} CPU usage is {{ $value }}%"
+
+      - alert: RedisSlowQueries
+        expr: rate(redis_slowlog_length[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: redis
+          component: performance
+        annotations:
+          summary: "Redis slow queries detected"
+          description: "Redis instance {{ $labels.instance }} has {{ $value }} slow queries per second"
+
+      # =======================
+      # REDIS CONNECTION ALERTS
+      # =======================
+      - alert: RedisHighConnections
+        expr: redis_connected_clients / redis_config_maxclients * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+          component: connections
+        annotations:
+          summary: "Redis high connection usage"
+          description: "Redis instance {{ $labels.instance }} connection usage is {{ $value }}%"
+
+      - alert: RedisConnectionSpike
+        expr: rate(redis_connections_received_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: warning
+          service: redis
+          component: connections
+        annotations:
+          summary: "Redis connection spike detected"
+          description: "Redis instance {{ $labels.instance }} receiving {{ $value }} new connections per second"
+
+      - alert: RedisRejectedConnections
+        expr: rate(redis_rejected_connections_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+          component: connections
+        annotations:
+          summary: "Redis rejecting connections"
+          description: "Redis instance {{ $labels.instance }} is rejecting {{ $value }} connections per second"
+
+      # =======================
+      # REDIS REPLICATION ALERTS
+      # =======================
+      - alert: RedisReplicationLag
+        expr: redis_master_repl_offset - redis_slave_repl_offset > 1000000
+        for: 2m
+        labels:
+          severity: warning
+          service: redis
+          component: replication
+        annotations:
+          summary: "Redis replication lag detected"
+          description: "Redis replica {{ $labels.instance }} is lagging behind master by {{ $value }} bytes"
+
+      - alert: RedisReplicationBroken
+        expr: redis_master_link_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+          component: replication
+        annotations:
+          summary: "Redis replication link down"
+          description: "Redis replica {{ $labels.instance }} lost connection to master"
+
+      # =======================
+      # REDIS DATABASE-SPECIFIC ALERTS
+      # =======================
+      - alert: RedisSessionStoreDown
+        expr: redis_db_keys{db="db0"} == 0 and time() - redis_db_keys_lastcheck{db="db0"} > 300
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+          component: sessions
+          database: "0"
+        annotations:
+          summary: "Redis session store appears down"
+          description: "Redis database 0 (sessions) has no keys and hasn't been updated in 5 minutes"
+
+      - alert: RedisHighSessionCount
+        expr: redis_db_keys{db="db0"} > 100000
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+          component: sessions
+          database: "0"
+        annotations:
+          summary: "High session count in Redis"
+          description: "Redis database 0 (sessions) has {{ $value }} sessions - consider session cleanup"
+
+      - alert: RedisCacheHitRateLow
+        expr: (rate(redis_keyspace_hits_total[5m]) / (rate(redis_keyspace_hits_total[5m]) + rate(redis_keyspace_misses_total[5m]))) * 100 < 70
+        for: 10m
+        labels:
+          severity: warning
+          service: redis
+          component: cache
+          database: "2"
+        annotations:
+          summary: "Redis cache hit rate is low"
+          description: "Redis cache hit rate is {{ $value }}% - consider cache strategy optimization"
+
+      # =======================
+      # REDIS SECURITY ALERTS
+      # =======================
+      - alert: RedisUnauthorizedAccess
+        expr: rate(redis_commands_failed_calls_total{cmd=~"auth|ping"}[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+          service: redis
+          component: security
+        annotations:
+          summary: "Redis unauthorized access attempts"
+          description: "Redis instance {{ $labels.instance }} experiencing {{ $value }} auth failures per second"
+
+      - alert: RedisConfigurationChanged
+        expr: changes(redis_config_maxmemory[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: redis
+          component: security
+        annotations:
+          summary: "Redis configuration changed"
+          description: "Redis configuration changed on {{ $labels.instance }}"
+
+      # =======================
+      # REDIS PERSISTENCE ALERTS
+      # =======================
+      - alert: RedisRDBSaveFailed
+        expr: redis_rdb_last_save_timestamp_seconds < (time() - 7200)
+        for: 1m
+        labels:
+          severity: warning
+          service: redis
+          component: persistence
+        annotations:
+          summary: "Redis RDB save failed"
+          description: "Redis instance {{ $labels.instance }} hasn't saved RDB snapshot in over 2 hours"
+
+      - alert: RedisAOFRewriteFailed
+        expr: redis_aof_last_rewrite_time_sec > 300
+        for: 1m
+        labels:
+          severity: warning
+          service: redis
+          component: persistence
+        annotations:
+          summary: "Redis AOF rewrite taking too long"
+          description: "Redis AOF rewrite on {{ $labels.instance }} taking {{ $value }} seconds"
+
+      # =======================
+      # BUSINESS LOGIC ALERTS
+      # =======================
+      - alert: RedisJobQueueBacklog
+        expr: redis_db_keys{db="db4"} > 10000
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+          component: job-queue
+          database: "4"
+        annotations:
+          summary: "Redis job queue backlog"
+          description: "Redis database 4 (job queue) has {{ $value }} pending jobs"
+
+      - alert: RedisRateLimitingStoreDown
+        expr: redis_db_keys{db="db3"} == 0 and rate(redis_commands_processed_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          service: redis
+          component: rate-limiting
+          database: "3"
+        annotations:
+          summary: "Redis rate limiting store appears down"
+          description: "Redis database 3 (rate limiting) has no keys but Redis is processing commands"
+
+      # =======================
+      # DERIVED METRICS
+      # =======================
+      - record: redis:memory_usage_percentage
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100
+
+      - record: redis:connection_usage_percentage
+        expr: (redis_connected_clients / redis_config_maxclients) * 100
+
+      - record: redis:cache_hit_rate_percentage
+        expr: (rate(redis_keyspace_hits_total[5m]) / (rate(redis_keyspace_hits_total[5m]) + rate(redis_keyspace_misses_total[5m]))) * 100
+
+      - record: redis:replication_lag_bytes
+        expr: redis_master_repl_offset - redis_slave_repl_offset
+
+      - record: redis:commands_per_second
+        expr: rate(redis_commands_processed_total[1m])
+
+      - record: redis:keyspace_operations_per_second
+        expr: rate(redis_keyspace_hits_total[1m]) + rate(redis_keyspace_misses_total[1m])
+
+  # =======================
+  # REDIS CAPACITY PLANNING
+  # =======================
+  - name: redis.capacity
+    rules:
+      - record: redis:memory_growth_rate_per_hour
+        expr: rate(redis_memory_used_bytes[1h]) * 3600
+
+      - record: redis:connection_growth_rate_per_hour
+        expr: rate(redis_connected_clients[1h]) * 3600
+
+      - record: redis:keys_growth_rate_per_hour
+        expr: rate(redis_db_keys[1h]) * 3600
+
+      - alert: RedisMemoryGrowthHigh
+        expr: redis:memory_growth_rate_per_hour > 100000000  # 100MB per hour
+        for: 2h
+        labels:
+          severity: warning
+          service: redis
+          component: capacity
+        annotations:
+          summary: "Redis memory growth rate high"
+          description: "Redis instance {{ $labels.instance }} memory growing at {{ $value | humanizeBytes }} per hour"

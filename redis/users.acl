@@ -1,0 +1,119 @@
+# Meta Ads Intelligence Platform - Redis ACL Configuration
+# Database-specific user access control
+
+# Default user - disabled for security
+user default off
+
+# =======================
+# APPLICATION USERS
+# =======================
+
+# Main application user - full access to designated databases
+user meta-ads-app on >MetaAdsApp2024!Secure# ~* &* +@all -flushdb -flushall -shutdown -debug -config -eval -script
+
+# Session management user - DB 0 only
+user session-manager on >SessionMgr2024!Key# ~session:* ~jwt:* ~auth:* &session:* &jwt:* &auth:* +@read +@write +@list +@string +@hash -@dangerous
+
+# Cache management user - DB 2 only
+user cache-manager on >CacheMgr2024!Data# ~cache:* ~api:* ~meta:* &cache:* &api:* &meta:* +@read +@write +@string +@hash +@list +expire +ttl -@dangerous
+
+# Rate limiting user - DB 3 only
+user rate-limiter on >RateLimit2024!Guard# ~rate:* ~limit:* ~security:* &rate:* &limit:* &security:* +@read +@write +@string +incr +expire +ttl -@dangerous
+
+# Job queue user - DB 4 only
+user job-manager on >JobQueue2024!Worker# ~job:* ~queue:* ~task:* &job:* &queue:* &task:* +@read +@write +@list +@stream +@string -@dangerous
+
+# Analytics user - DB 5 only
+user analytics-reader on >Analytics2024!Read# ~analytics:* ~metrics:* ~stats:* &analytics:* &metrics:* &stats:* +@read +@string +@hash +@list -@write -@dangerous
+
+# =======================
+# ADMIN USERS
+# =======================
+
+# Database administrator - emergency access only
+user redis-admin on >AdminEmergency2024!Override# ~* &* +@all
+
+# Monitoring user - read-only access for metrics
+user monitoring on >Monitor2024!Watch# ~* &* +@read +info +ping +client +memory +config|get -@write -@dangerous
+
+# Backup user - for data export operations
+user backup-service on >Backup2024!Export# ~* &* +@read +bgsave +bgrewriteaof +lastsave +save -@write -@dangerous
+
+# =======================
+# MAINTENANCE USERS
+# =======================
+
+# Maintenance user - for administrative tasks
+user maintenance on >Maintain2024!Tasks# ~* &* +@all -flushdb -flushall -shutdown -debug
+
+# Replica user - for replication
+user replica-user on >Replica2024!Sync# ~* &* +psync +replconf +ping -@all
+
+# =======================
+# EXTERNAL SERVICE USERS
+# =======================
+
+# Monitoring service integration (Prometheus, etc.)
+user prometheus on >Prometheus2024!Metrics# ~* +@read +info +ping +client +memory +config|get -@write -@dangerous
+
+# Logging service
+user log-collector on >LogCollect2024!Events# ~log:* ~audit:* &log:* &audit:* +@read -@write -@dangerous
+
+# Health check service
+user health-check on >HealthCheck2024!Status# ~health:* &health:* +@read +ping +info -@write -@dangerous
+
+# =======================
+# PATTERN-BASED RULES
+# =======================
+
+# Users can only access keys with specific patterns
+# session-manager: session:*, jwt:*, auth:*
+# cache-manager: cache:*, api:*, meta:*
+# rate-limiter: rate:*, limit:*, security:*
+# job-manager: job:*, queue:*, task:*
+# analytics-reader: analytics:*, metrics:*, stats:*
+
+# Channel access patterns for pub/sub
+# &session:* - Session events
+# &cache:* - Cache invalidation events
+# &rate:* - Rate limiting events
+# &job:* - Job queue events
+# &analytics:* - Analytics events
+
+# =======================
+# COMMAND RESTRICTIONS
+# =======================
+
+# Dangerous commands are blocked by default for all users
+# -flushdb -flushall -shutdown -debug -config -eval -script
+
+# Critical commands require specific permissions
+# Only redis-admin and maintenance users can execute:
+# - CONFIG SET/GET/REWRITE
+# - SHUTDOWN
+# - DEBUG commands
+# - LUA scripting (EVAL, SCRIPT)
+
+# =======================
+# CATEGORY PERMISSIONS
+# =======================
+
+# @read: GET, MGET, EXISTS, TTL, TYPE, etc.
+# @write: SET, MSET, DEL, EXPIRE, etc.
+# @list: LPUSH, RPUSH, LPOP, RPOP, LRANGE, etc.
+# @string: String operations
+# @hash: Hash operations
+# @stream: Stream operations
+# @dangerous: Dangerous operations (blocked by default)
+
+# =======================
+# SECURITY NOTES
+# =======================
+
+# 1. All passwords should be changed in production
+# 2. Use environment variables for password management
+# 3. Rotate passwords regularly (every 90 days)
+# 4. Monitor ACL logs for unauthorized access attempts
+# 5. Use TLS for all connections
+# 6. Implement IP whitelisting at network level
+# 7. Regular security audits of ACL configurations

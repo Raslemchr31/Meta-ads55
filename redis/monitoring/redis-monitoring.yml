@@ -1,0 +1,185 @@
+# Meta Ads Intelligence Platform - Redis Monitoring Configuration
+# Prometheus monitoring rules and alerts for Redis
+
+version: '3.8'
+
+services:
+  # =======================
+  # REDIS EXPORTER
+  # =======================
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.55.0
+    container_name: meta-ads-redis-exporter
+    environment:
+      # Master connection
+      - REDIS_ADDR=redis://redis-master:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_USER=${REDIS_USERNAME:-meta-ads-app}
+
+      # Monitoring configuration
+      - REDIS_EXPORTER_INCL_SYSTEM_METRICS=true
+      - REDIS_EXPORTER_CHECK_KEYS=session:*,cache:*,rate:*,job:*,analytics:*,user:*
+      - REDIS_EXPORTER_CHECK_SINGLE_KEYS=meta-ads:health,meta-ads:config
+      - REDIS_EXPORTER_PING_ON_CONNECT=true
+      - REDIS_EXPORTER_INCL_CONFIG_METRICS=true
+
+      # Security settings
+      - REDIS_EXPORTER_LOG_FORMAT=json
+      - REDIS_EXPORTER_DEBUG=false
+      - REDIS_EXPORTER_WEB_LISTEN_ADDRESS=0.0.0.0:9121
+
+    ports:
+      - "9121:9121"
+    networks:
+      - redis-network
+      - monitoring-network
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9121/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+    labels:
+      - "com.meta-ads.service=redis-exporter"
+      - "com.meta-ads.environment=production"
+
+  # =======================
+  # REDIS SENTINEL EXPORTER
+  # =======================
+  redis-sentinel-exporter:
+    image: oliver006/redis_exporter:v1.55.0
+    container_name: meta-ads-redis-sentinel-exporter
+    environment:
+      - REDIS_ADDR=redis://redis-sentinel-1:26379
+      - REDIS_PASSWORD=${REDIS_SENTINEL_PASSWORD:-SentinelSecure2024!Guard#}
+      - REDIS_EXPORTER_IS_SENTINEL=true
+      - REDIS_EXPORTER_SENTINEL_MASTERS=meta-ads-master
+      - REDIS_EXPORTER_INCL_SYSTEM_METRICS=true
+      - REDIS_EXPORTER_WEB_LISTEN_ADDRESS=0.0.0.0:9122
+    ports:
+      - "9122:9122"
+    networks:
+      - redis-network
+      - monitoring-network
+    depends_on:
+      - redis-sentinel-1
+      - redis-sentinel-2
+      - redis-sentinel-3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9122/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.3'
+        reservations:
+          memory: 32M
+          cpus: '0.05'
+    labels:
+      - "com.meta-ads.service=redis-sentinel-exporter"
+      - "com.meta-ads.environment=production"
+
+  # =======================
+  # REDIS INSIGHT (Development/Staging)
+  # =======================
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: meta-ads-redis-insight
+    ports:
+      - "8001:8001"
+    volumes:
+      - redis-insight-data:/db
+    environment:
+      - RITRUSTEDORIGINS=http://localhost:8001
+    networks:
+      - redis-network
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+    profiles:
+      - development
+      - staging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    labels:
+      - "com.meta-ads.service=redis-insight"
+      - "com.meta-ads.environment=development"
+
+  # =======================
+  # REDIS MONITORING DASHBOARD
+  # =======================
+  redis-dashboard:
+    image: grafana/grafana:latest
+    container_name: meta-ads-redis-dashboard
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - redis-grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-RedisAdmin2024!}
+      - GF_INSTALL_PLUGINS=redis-datasource
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/redis-overview.json
+    networks:
+      - monitoring-network
+    depends_on:
+      - redis-exporter
+      - redis-sentinel-exporter
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 128M
+          cpus: '0.2'
+    labels:
+      - "com.meta-ads.service=redis-dashboard"
+      - "com.meta-ads.environment=production"
+
+networks:
+  redis-network:
+    external: true
+    name: meta-ads-redis
+
+  monitoring-network:
+    external: true
+    name: meta-ads-monitoring
+
+volumes:
+  redis-insight-data:
+    driver: local
+    labels:
+      - "com.meta-ads.volume=redis-insight-data"
+
+  redis-grafana-data:
+    driver: local
+    labels:
+      - "com.meta-ads.volume=redis-grafana-data"
